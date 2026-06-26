@@ -57,8 +57,8 @@ st.markdown("""
 
         /* Responsive text fields: strictly capped height */
         textarea {
-            height: 38vh !important; 
-            min-height: 180px !important; 
+            height: 40vh !important; 
+            min-height: 200px !important; 
             font-size: max(1vw, 12px) !important; 
         }
 
@@ -99,11 +99,12 @@ st.markdown("""
 # Main Header
 st.title("Email Polisher")
 
-# SAFE KEY FIX: Creates a clean password input field in a sidebar so your key is never baked into the public code
-with st.sidebar:
-    st.subheader("Settings")
-    OPENROUTER_API_KEY = st.text_input("OpenRouter API Key:", type="password", placeholder="sk-or-v1-...")
-    st.markdown("---")
+# BACKEND SECRET INJECTION: Looks inside Streamlit Cloud's hidden vault for the key safely
+if "OPENROUTER_API_KEY" in st.secrets:
+    OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
+else:
+    # Fallback option if running locally
+    OPENROUTER_API_KEY = "sk-or-v1-YOUR_LOCAL_KEY_HERE"
 
 # Length Selection Toggle
 email_length = st.radio(
@@ -143,40 +144,37 @@ with col2:
         st.session_state.generated_email = ""
         
     if submit_button and user_input:
-        if not OPENROUTER_API_KEY:
-            st.error("Please enter your OpenRouter API Key in the sidebar.")
-        else:
-            with st.spinner("Processing..."):
-                try:
-                    client = OpenAI(
-                        base_url="https://openrouter.ai/api/v1",
-                        api_key=OPENROUTER_API_KEY,
-                    )
-                    
-                    system_instruction = (
-                        f"You are an expert corporate communications manager. "
-                        f"Translate the user's rough notes or broken text into a flawless, professional business email. "
-                        f"Provide a clear 'Subject:' line and the full email body. "
-                        f"Do not include any conversational introduction or out-of-character comments. "
-                        f"CRITICAL LENGTH RULE: {length_instruction}"
-                    )
-                    
-                    response = client.chat.completions.create(
-                        model="deepseek/deepseek-chat", 
-                        messages=[
-                            {"role": "system", "content": system_instruction},
-                            {"role": "user", "content": user_input}
-                        ]
-                    )
-                    st.session_state.generated_email = response.choices[0].message.content
-                    
-                except Exception as e:
-                    st.error(f"Error: {e}")
+        with st.spinner("Processing..."):
+            try:
+                client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=OPENROUTER_API_KEY,
+                )
+                
+                system_instruction = (
+                    f"You are an expert corporate communications manager. "
+                    f"Translate the user's rough notes or broken text into a flawless, professional business email. "
+                    f"Provide a clear 'Subject:' line and the full email body. "
+                    f"Do not include any conversational introduction or out-of-character comments. "
+                    f"CRITICAL LENGTH RULE: {length_instruction}"
+                )
+                
+                response = client.chat.completions.create(
+                    model="deepseek/deepseek-chat", 
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": user_input}
+                    ]
+                )
+                st.session_state.generated_email = response.choices[0].message.content
+                
+            except Exception as e:
+                st.error(f"Error: {e}")
 
     # Output window
     st.text_area("Output Box", value=st.session_state.generated_email, label_visibility="collapsed")
     
-    # Places the Copy button directly in line on the same horizon line as the Generate button
+    # Places the Copy button directly inline on the same horizon line as the Generate button
     st.html(f"""
         <div style="width: 100%; margin: 0; padding: 0;">
             <button onclick="navigator.clipboard.writeText(parent.document.querySelector('textarea[aria-label=\"Output Box\"]').value)" 
