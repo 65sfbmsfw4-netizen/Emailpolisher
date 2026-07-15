@@ -3,7 +3,7 @@ from openai import OpenAI
 import re
 
 # Page config
-st.set_page_config(page_title="Email Utility Suite", layout="wide")
+st.set_page_config(page_title="Email Workspace", layout="wide")
 
 # CSS to lock the layout height and force everything onto a single, non-scrolling screen
 st.markdown("""
@@ -111,37 +111,23 @@ if "OPENROUTER_API_KEY" in st.secrets:
 else:
     OPENROUTER_API_KEY = "sk-or-v1-YOUR_LOCAL_KEY_HERE"
 
-# ----------------- HEADER AREA WITH NAV BUTTONS AND DOMAIN VERIFIER -----------------
-head_col1, head_col2, head_col3 = st.columns([2, 2, 3])
+# ----------------- TOP MAIN HEADER ROW -----------------
+head_col1, head_col2 = st.columns([5, 3])
 
 with head_col1:
-    st.title("Email Suite")
+    # Changes dynamically based on selected mode
+    if st.session_state.current_view == "Polisher":
+        st.title("Email Polisher")
+    else:
+        st.title("Email Reader")
 
 with head_col2:
-    # Mode toggle buttons aligned next to the title
-    st.write('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
-    sub_c1, sub_c2 = st.columns(2)
-    with sub_c1:
-        if st.button("Email Polisher", use_container_width=True, type="primary" if st.session_state.current_view == "Polisher" else "secondary"):
-            st.session_state.current_view = "Polisher"
-            st.rerun()
-    with sub_c2:
-        if st.button("Email Reader", use_container_width=True, type="primary" if st.session_state.current_view == "Reader" else "secondary"):
-            st.session_state.current_view = "Reader"
-            st.rerun()
-
-with head_col3:
     # Domain Legit / Scam Checker input window
-    st.write('<div style="margin-top: 5px;"></div>', unsafe_allow_html=True)
     domain_input = st.text_input("Verify Domain Risk (e.g., bcc.uk):", placeholder="example.com", label_visibility="visible")
     
     if domain_input:
         domain_clean = domain_input.strip().lower().replace("http://", "").replace("https://", "").split("/")[0]
-        
-        # Basic RegEx for domain structure lookup
         domain_pattern = re.compile(r'^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$')
-        
-        # High-risk target footprints (disposable/suspicious strings patterns)
         scam_flags = ["xyz", "top", "work", "click", "tempemail", "sharklasers", "mailinator", "guerrillamail"]
         
         if not domain_pattern.match(domain_clean):
@@ -150,6 +136,17 @@ with head_col3:
             st.caption("🚨 **Status:** High Risk / Known Scam Variant")
         else:
             st.caption("✅ **Status:** Domain format looks structural / Standard Legit profile")
+
+# ----------------- NAVIGATION BUTTONS ROW (LOWERED) -----------------
+nav_col1, nav_col2, nav_col3 = st.columns([2, 2, 4])
+with nav_col1:
+    if st.button("Email Polisher Mode", use_container_width=True, type="primary" if st.session_state.current_view == "Polisher" else "secondary"):
+        st.session_state.current_view = "Polisher"
+        st.rerun()
+with nav_col2:
+    if st.button("Email Reader Mode", use_container_width=True, type="primary" if st.session_state.current_view == "Reader" else "secondary"):
+        st.session_state.current_view = "Reader"
+        st.rerun()
 
 st.markdown("---")
 
@@ -215,7 +212,7 @@ if st.session_state.current_view == "Polisher":
         
         st.html(f"""
             <div style="width: 100%; margin: 0; padding: 0;">
-                <button onclick="navigator.clipboard.writeText(parent.document.querySelectorAll('textarea[aria-label=\"Output Box Polisher\"]').value)" 
+                <button onclick="navigator.clipboard.writeText(parent.document.querySelector('textarea[aria-label=\"Output Box Polisher\"]').value)" 
                         class="responsive-copy-btn">
                     Copy All Text
                 </button>
@@ -266,7 +263,7 @@ elif st.session_state.current_view == "Reader":
         
         st.html(f"""
             <div style="width: 100%; margin: 0; padding: 0;">
-                <button onclick="navigator.clipboard.writeText(parent.document.querySelectorAll('textarea[aria-label=\"Output Box Reader\"]').value)" 
+                <button onclick="navigator.clipboard.writeText(parent.document.querySelector('textarea[aria-label=\"Output Box Reader\"]').value)" 
                         class="responsive-copy-btn">
                     Copy Action Items
                 </button>
