@@ -1,8 +1,9 @@
 import streamlit as st
 from openai import OpenAI
+import re
 
 # Page config
-st.set_page_config(page_title="Email Polisher", layout="wide")
+st.set_page_config(page_title="Email Utility Suite", layout="wide")
 
 # CSS to lock the layout height and force everything onto a single, non-scrolling screen
 st.markdown("""
@@ -22,10 +23,10 @@ st.markdown("""
             padding-bottom: 0px !important;
         }
         
-        /* Header margin */
+        /* Header structure spacing adjustments */
         h1 {
             font-size: max(2vw, 18px) !important;
-            margin-top: 25px !important; 
+            margin-top: 10px !important; 
             margin-bottom: 0px !important; 
             padding-bottom: 0px !important;
         }
@@ -96,90 +97,178 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Main Header
-st.title("Email Polisher")
+# Initialize Session State values for views and outputs
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "Polisher"
+if "generated_email" not in st.session_state:
+    st.session_state.generated_email = ""
+if "read_summary" not in st.session_state:
+    st.session_state.read_summary = ""
 
-# BACKEND SECRET INJECTION: Looks inside Streamlit Cloud's hidden vault for the key safely
+# Setup API Key access
 if "OPENROUTER_API_KEY" in st.secrets:
     OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
 else:
-    # Fallback option if running locally
     OPENROUTER_API_KEY = "sk-or-v1-YOUR_LOCAL_KEY_HERE"
 
-# Length Selection Toggle
-email_length = st.radio(
-    "Select Email Length Style:",
-    ["Short & On-Point", "Traditional & Polished"],
-    horizontal=True,
-    index=0
-)
+# ----------------- HEADER AREA WITH NAV BUTTONS AND DOMAIN VERIFIER -----------------
+head_col1, head_col2, head_col3 = st.columns([2, 2, 3])
 
-if email_length == "Short & On-Point":
-    length_instruction = (
-        "The email must be brief, precise, and directly on point. Avoid unnecessary filler words, "
-        "keep sentences short, and ensure the recipient can grasp the core message instantly."
-    )
-else:
-    length_instruction = (
-        "The email should be traditional, thorough, and highly polished. Use professional transitional "
-        "phrases, elegant business courtesy, and a complete corporate structure."
-    )
+with head_col1:
+    st.title("Email Suite")
 
-# Dual-window responsive columns
-col1, col2 = st.columns(2)
+with head_col2:
+    # Mode toggle buttons aligned next to the title
+    st.write('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
+    sub_c1, sub_c2 = st.columns(2)
+    with sub_c1:
+        if st.button("Email Polisher", use_container_width=True, type="primary" if st.session_state.current_view == "Polisher" else "secondary"):
+            st.session_state.current_view = "Polisher"
+            st.rerun()
+    with sub_c2:
+        if st.button("Email Reader", use_container_width=True, type="primary" if st.session_state.current_view == "Reader" else "secondary"):
+            st.session_state.current_view = "Reader"
+            st.rerun()
 
-with col1:
-    st.subheader("Input")
-    user_input = st.text_area(
-        "Input Box",
-        placeholder="",
-        label_visibility="collapsed"
-    )
-    submit_button = st.button("Generate Email", type="primary", use_container_width=True)
-
-with col2:
-    st.subheader("Polished")
+with head_col3:
+    # Domain Legit / Scam Checker input window
+    st.write('<div style="margin-top: 5px;"></div>', unsafe_allow_html=True)
+    domain_input = st.text_input("Verify Domain Risk (e.g., bcc.uk):", placeholder="example.com", label_visibility="visible")
     
-    if "generated_email" not in st.session_state:
-        st.session_state.generated_email = ""
+    if domain_input:
+        domain_clean = domain_input.strip().lower().replace("http://", "").replace("https://", "").split("/")[0]
         
-    if submit_button and user_input:
-        with st.spinner("Processing..."):
-            try:
-                client = OpenAI(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=OPENROUTER_API_KEY,
-                )
-                
-                system_instruction = (
-                    f"You are an expert corporate communications manager. "
-                    f"Translate the user's rough notes or broken text into a flawless, professional business email. "
-                    f"Provide a clear 'Subject:' line and the full email body. "
-                    f"Do not include any conversational introduction or out-of-character comments. "
-                    f"CRITICAL LENGTH RULE: {length_instruction}"
-                )
-                
-                response = client.chat.completions.create(
-                    model="deepseek/deepseek-chat", 
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": user_input}
-                    ]
-                )
-                st.session_state.generated_email = response.choices[0].message.content
-                
-            except Exception as e:
-                st.error(f"Error: {e}")
+        # Basic RegEx for domain structure lookup
+        domain_pattern = re.compile(r'^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$')
+        
+        # High-risk target footprints (disposable/suspicious strings patterns)
+        scam_flags = ["xyz", "top", "work", "click", "tempemail", "sharklasers", "mailinator", "guerrillamail"]
+        
+        if not domain_pattern.match(domain_clean):
+            st.caption("⚠️ Invalid format pattern.")
+        elif any(flag in domain_clean for flag in scam_flags):
+            st.caption("🚨 **Status:** High Risk / Known Scam Variant")
+        else:
+            st.caption("✅ **Status:** Domain format looks structural / Standard Legit profile")
 
-    # Output window
-    st.text_area("Output Box", value=st.session_state.generated_email, label_visibility="collapsed")
-    
-    # Places the Copy button directly inline on the same horizon line as the Generate button
-    st.html(f"""
-        <div style="width: 100%; margin: 0; padding: 0;">
-            <button onclick="navigator.clipboard.writeText(parent.document.querySelector('textarea[aria-label=\"Output Box\"]').value)" 
-                    class="responsive-copy-btn">
-                Copy All Text
-            </button>
-        </div>
-    """)
+st.markdown("---")
+
+# ----------------- VIEW 1: EMAIL POLISHER MODE -----------------
+if st.session_state.current_view == "Polisher":
+    # Length Selection Toggle
+    email_length = st.radio(
+        "Select Email Length Style:",
+        ["Short & On-Point", "Traditional & Polished"],
+        horizontal=True,
+        index=0
+    )
+
+    if email_length == "Short & On-Point":
+        length_instruction = (
+            "The email must be brief, precise, and directly on point. Avoid unnecessary filler words, "
+            "keep sentences short, and ensure the recipient can grasp the core message instantly."
+        )
+    else:
+        length_instruction = (
+            "The email should be traditional, thorough, and highly polished. Use professional transitional "
+            "phrases, elegant business courtesy, and a complete corporate structure."
+        )
+
+    # Dual-window responsive columns
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Raw Content Input")
+        user_input = st.text_area(
+            "Input Box Polisher",
+            placeholder="Type rough points here...",
+            label_visibility="collapsed"
+        )
+        submit_button = st.button("Generate Email", type="primary", use_container_width=True)
+
+    with col2:
+        st.subheader("Polished Output")
+        
+        if submit_button and user_input:
+            with st.spinner("Polishing..."):
+                try:
+                    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+                    system_instruction = (
+                        f"You are an expert corporate communications manager. "
+                        f"Translate the user's rough notes or broken text into a flawless, professional business email. "
+                        f"Provide a clear 'Subject:' line and the full email body. "
+                        f"Do not include any conversational introduction or out-of-character comments. "
+                        f"CRITICAL LENGTH RULE: {length_instruction}"
+                    )
+                    response = client.chat.completions.create(
+                        model="deepseek/deepseek-chat", 
+                        messages=[
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": user_input}
+                        ]
+                    )
+                    st.session_state.generated_email = response.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        st.text_area("Output Box Polisher", value=st.session_state.generated_email, label_visibility="collapsed")
+        
+        st.html(f"""
+            <div style="width: 100%; margin: 0; padding: 0;">
+                <button onclick="navigator.clipboard.writeText(parent.document.querySelectorAll('textarea[aria-label=\"Output Box Polisher\"]').value)" 
+                        class="responsive-copy-btn">
+                    Copy All Text
+                </button>
+            </div>
+        """)
+
+# ----------------- VIEW 2: EMAIL READER MODE -----------------
+elif st.session_state.current_view == "Reader":
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Long Email Input")
+        email_to_read = st.text_area(
+            "Input Box Reader",
+            placeholder="Paste the long structural email you received here...",
+            label_visibility="collapsed"
+        )
+        read_button = st.button("Extract Clear Instructions", type="primary", use_container_width=True)
+
+    with col2:
+        st.subheader("Actionable Summary (Point Form)")
+        
+        if read_button and email_to_read:
+            with st.spinner("Analyzing email architecture..."):
+                try:
+                    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+                    reader_instruction = (
+                        "You are an efficient executive operations assistant. Your job is to parse long, wordy corporate emails "
+                        "and strip them down into immediate, actionable intelligence for the receiver. "
+                        "Format the output strictly in clean point-form blocks with the following headers:\n"
+                        "- **CORE PURPOSE**: (1 line summary of why this email matters)\n"
+                        "- **KEY INSTRUCTIONS**: (Clear point-form breakdown of what the email is instructing the reader to do/know)\n"
+                        "- **ACTION ITEMS & DEADLINES**: (Explicit assignments and target dates if mentioned, otherwise state 'None specified')\n"
+                        "Do not include conversational filler, meta-text, or polite opening/closing commentary."
+                    )
+                    response = client.chat.completions.create(
+                        model="deepseek/deepseek-chat", 
+                        messages=[
+                            {"role": "system", "content": reader_instruction},
+                            {"role": "user", "content": email_to_read}
+                        ]
+                    )
+                    st.session_state.read_summary = response.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        st.text_area("Output Box Reader", value=st.session_state.read_summary, label_visibility="collapsed")
+        
+        st.html(f"""
+            <div style="width: 100%; margin: 0; padding: 0;">
+                <button onclick="navigator.clipboard.writeText(parent.document.querySelectorAll('textarea[aria-label=\"Output Box Reader\"]').value)" 
+                        class="responsive-copy-btn">
+                    Copy Action Items
+                </button>
+            </div>
+        """)
